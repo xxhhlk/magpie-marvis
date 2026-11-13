@@ -11,6 +11,7 @@
 import { usage as buildUsage, usageWindow } from "../quota.mjs"
 import { businessHeaders } from "../marvis/protocol.mjs"
 import { BASE } from "../context.mjs"
+import { DAILY_SPAN_SECONDS, nextDailyReset } from "../daily-reset.mjs"
 
 const WALLET_URL = `${BASE}/v3/marvis_get_wallet`
 
@@ -85,6 +86,8 @@ export function usageHook() {
           limit: total,
           unit: "tokens",
           display: `${fmt(avail)} 可用 / 共 ${fmt(total)}`,
+          resetsAt: nextDailyReset(),
+          span: DAILY_SPAN_SECONDS,
         }),
         // 冻结额度单独一条，只上卡片（不影响路由）
         ...(frozen > 0
