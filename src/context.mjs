@@ -104,12 +104,16 @@ const TABLE = [
   //   kimi-k2.5（500 RPC）· hunyuan-2.0-instruct-20251111（空响应）· venus-vision-llm（→ default）
 
   // ── DeepSeek ────────────────────────────────────────────────
-  ["main-auto", "deepseek-v4-1-flash-261017", 1_000_000, { reasoning: true, tools: true }],
+  // ⚠ 2026-11-14 实测：`deepseek-v4-1-flash-261017` 原生收图 —— 直传一张纯青绿色的
+  //   PNG（不做任何描述中转）答出「青色」。此前这两条槽位没写 `vision`，magpie 按
+  //   「厂商未表态」去 models.dev 投票，得到 text-only，路由组里的图片就被交给
+  //   「识图模型」转述，等于白丢一次读图机会。缺 `vision` 是静默降级，不会报错。
+  ["main-auto", "deepseek-v4-1-flash-261017", 1_000_000, { reasoning: true, tools: true, vision: true }],
   // ⚠ 2026-11-13 实测：`deepseek-v4-pro-external` 回的是 `deepseek-v4-1-flash-261017`，
   //   不是名字暗示的 pro —— 显示名跟着实际值走，并加后缀与上面的 main-auto 区分。
   //   留这条的理由：auto 家族（main-auto / file-auto / computer-auto / browser-auto）
   //   在服务端是**按账号**改路由的，这条固定映射不受影响 —— 账号被改路由时它是可用的替代槽位。
-  ["deepseek-v4-pro-external", "deepseek-v4-1-flash-261017 (防降级)", 1_000_000, { reasoning: true, tools: true }],
+  ["deepseek-v4-pro-external", "deepseek-v4-1-flash-261017 (防降级)", 1_000_000, { reasoning: true, tools: true, vision: true }],
   ["hy3-preview-agent", "deepseek-v4-flash-ga-260731", 1_000_000, { reasoning: true, tools: true }],
 
   // ── 其他厂商 ─────────────────────────────────────────────────
