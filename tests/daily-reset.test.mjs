@@ -7,8 +7,29 @@ import assert from "node:assert/strict"
 
 import { DAILY_SPAN_SECONDS, nextDailyReset } from "../src/daily-reset.mjs"
 import { usageWindow } from "../src/quota.mjs"
+import { usageHook } from "../src/hooks/usage.mjs"
 
 const HOUR = 3_600_000
+
+test("wallet usage reports the next Beijing midnight and daily span", async () => {
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    data: { total_tokens: 10_000_000, used_tokens: 2_000_000, avail_tokens: 8_000_000 },
+  }))
+  try {
+    const before = Date.now()
+    const result = await usageHook()(async () => ({
+      access: "test-token", metadata: { openid: "test-openid", guid: "test-guid" },
+    }))
+    const after = Date.now()
+    const window = result.windows[0]
+    assert.equal(window.used, 20)
+    assert.equal(window.span, 86400)
+    assert.ok([nextDailyReset(before), nextDailyReset(after)].includes(window.resetsAt))
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
 
 test("nextDailyReset returns the next Beijing midnight, strictly in the future", () => {
   const now = Date.parse("2026-11-13T15:45:48Z") // 23:45:48 Beijing

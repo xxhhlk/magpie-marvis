@@ -104,16 +104,16 @@ const TABLE = [
   //   kimi-k2.5（500 RPC）· hunyuan-2.0-instruct-20251111（空响应）· venus-vision-llm（→ default）
 
   // ── DeepSeek ────────────────────────────────────────────────
-  // ⚠ 2026-11-14 实测：`deepseek-v4-1-flash-261017` 原生收图 —— 直传一张纯青绿色的
-  //   PNG（不做任何描述中转）答出「青色」。此前这两条槽位没写 `vision`，magpie 按
-  //   「厂商未表态」去 models.dev 投票，得到 text-only，路由组里的图片就被交给
-  //   「识图模型」转述，等于白丢一次读图机会。缺 `vision` 是静默降级，不会报错。
-  ["main-auto", "deepseek-v4-1-flash-261017", 1_000_000, { reasoning: true, tools: true, vision: true }],
+  ["main-auto", "deepseek-v4-1-flash-261017", 1_000_000, { reasoning: true, tools: true, vision: true, efforts: ["low", "high", "max"] }],
   // ⚠ 2026-11-13 实测：`deepseek-v4-pro-external` 回的是 `deepseek-v4-1-flash-261017`，
   //   不是名字暗示的 pro —— 显示名跟着实际值走，并加后缀与上面的 main-auto 区分。
   //   留这条的理由：auto 家族（main-auto / file-auto / computer-auto / browser-auto）
   //   在服务端是**按账号**改路由的，这条固定映射不受影响 —— 账号被改路由时它是可用的替代槽位。
-  ["deepseek-v4-pro-external", "deepseek-v4-1-flash-261017 (防降级)", 1_000_000, { reasoning: true, tools: true, vision: true }],
+  //
+  // ⚠ 2026-11-15：后缀**必须是纯 ASCII、不能有空格与全角括号**（此前用的是 ` (防降级)`）。
+  //   用户实测在 VS Code Copilot 里选它会在回复阶段一直卡住（DSH 下同一条正常，见 issue #15）——
+  //   模型名带空格/中文在客户端那一层会被拿去做 header 或 URL 处理，非 ASCII 会出问题。
+  ["deepseek-v4-pro-external", "deepseek-v4-1-flash-261017-antidowngrade", 1_000_000, { reasoning: true, tools: true, vision: true, efforts: ["low", "high", "max"] }],
   ["hy3-preview-agent", "deepseek-v4-flash-ga-260731", 1_000_000, { reasoning: true, tools: true }],
 
   // ── 其他厂商 ─────────────────────────────────────────────────
@@ -155,6 +155,9 @@ export const DISPLAY_BY_SLOT = Object.freeze(
  */
 const LEGACY_DISPLAY_ALIASES = Object.freeze({
   "deepseek-v4-pro-202606": "deepseek-v4-pro-external",
+  // 0.2.23 / 0.2.24 用过的带中文后缀的显示名。0.2.25 换成纯 ASCII（见 TABLE 里的注释），
+  // 已经写好它的路由组不能因此 400。
+  "deepseek-v4-1-flash-261017 (防降级)": "deepseek-v4-pro-external",
 })
 
 /** 真实模型名 → 上游接受的槽位名 */
@@ -202,6 +205,17 @@ export function displayModelId(model) {
 }
 
 /**
+ * 推理挡位 → OpenCode `variants` 形状（键是挡位名，值映射成请求里的 `reasoningEffort`）。
+ *
+ * Magpie 用这份 metadata 生成 Codex 的 `supported_reasoning_levels` 与 DSH 的
+ * `reasoningEfforts`；不声明就会落到客户端默认值 —— DSH 的 DeepSeek 模型会因此
+ * 缺 low / high / max 三挡（2026-11-15 实测 Marvis 的 4.1f 就这三挡）。
+ */
+function variantsOf(efforts) {
+  return Object.fromEntries(efforts.map((effort) => [effort, { reasoningEffort: effort }]))
+}
+
+/**
  * 静态模型表（`config` 钩子用）—— 没人登录时也能显示。
  *
  * ⚠ 这是 **OpenCode `#quick` 形状**，与 `provider.models` 返回的形状**不同**：
@@ -226,6 +240,7 @@ export function staticModels() {
       },
       tool_call: Boolean(cap.tools),
       reasoning: Boolean(cap.reasoning),
+      ...(cap.reasoning && cap.efforts ? { variants: variantsOf(cap.efforts) } : {}),
       limit: { context, output: DEFAULT_OUTPUT },
       ...(cap.search ? { searches: true } : {}),
     }
@@ -267,6 +282,7 @@ export function providerModels() {
         },
         output: { text: true },
       },
+      ...(cap.reasoning && cap.efforts ? { variants: variantsOf(cap.efforts) } : {}),
       limit: { context, output: DEFAULT_OUTPUT },
       ...(cap.search ? { searches: true } : {}),
     }
